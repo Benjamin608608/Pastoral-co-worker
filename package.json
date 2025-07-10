@@ -1,7 +1,7 @@
 {
-  "name": "emotional-care-bot",
-  "version": "1.0.0",
-  "description": "Discord emotional care bot with Bible verses",
+  "name": "enhanced-emotional-care-bot",
+  "version": "2.0.0",
+  "description": "Enhanced Discord emotional care bot with comprehensive emotion detection",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -12,5 +12,14 @@
   },
   "engines": {
     "node": "18.x"
-  }
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "emotional",
+    "care",
+    "bible",
+    "gpt",
+    "ai"
+  ]
 }
