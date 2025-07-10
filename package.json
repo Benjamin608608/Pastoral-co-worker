@@ -1,0 +1,16 @@
+{
+  "name": "emotional-care-bot",
+  "version": "1.0.0",
+  "description": "Discord emotional care bot with Bible verses",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "axios": "^1.6.2"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}
