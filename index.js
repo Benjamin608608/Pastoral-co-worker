@@ -67,19 +67,21 @@ function setCooldown(userId) {
 // 情緒分析
 async function analyzeEmotion(message) {
     try {
+        console.log('開始GPT情緒分析...');
         const response = await axios.post('https://api.openai.com/v1/chat/completions', {
             model: 'gpt-3.5-turbo',
             messages: [
                 {
                     role: 'system',
-                    content: `你是情緒分析專家。分析訊息中的負面情緒。回應JSON格式：
+                    content: `你是情緒分析專家。分析訊息中的負面情緒。請嚴格回應JSON格式，不要添加任何其他文字：
 {
-  "isNegative": true/false,
-  "primaryEmotion": "憤怒/絕望/疲憊/焦慮/悲傷/孤獨/厭惡/罪惡感/壓力/攻擊性",
-  "intensity": 1-10,
+  "isNegative": true,
+  "primaryEmotion": "憤怒",
+  "intensity": 5,
   "keywords": ["關鍵字"]
 }
 
+主要情緒類型：憤怒、絕望、疲憊、焦慮、悲傷、孤獨、厭惡、罪惡感、壓力、攻擊性
 檢測負面情緒：憤怒、生氣、絕望、想死、疲憊、累、焦慮、擔心、悲傷、難過、孤獨、寂寞、厭惡、討厭、罪惡感、後悔、壓力、攻擊性、仇恨等。`
                 },
                 {
@@ -88,20 +90,25 @@ async function analyzeEmotion(message) {
                 }
             ],
             temperature: 0.3,
-            max_tokens: 200
+            max_tokens: 150
         }, {
             headers: {
                 'Authorization': `Bearer ${OPENAI_API_KEY}`,
                 'Content-Type': 'application/json'
-            }
+            },
+            timeout: 10000
         });
 
-        return JSON.parse(response.data.choices[0].message.content);
+        console.log('GPT原始回應:', response.data.choices[0].message.content);
+        const result = JSON.parse(response.data.choices[0].message.content);
+        console.log('GPT分析結果:', result);
+        return result;
 
     } catch (error) {
-        console.error('GPT分析失敗:', error.message);
+        console.error('GPT分析失敗:', error.response?.data || error.message);
         
         // 備用關鍵字分析
+        console.log('使用備用關鍵字分析...');
         const keywords = {
             '憤怒': ['生氣', '憤怒', '氣死', '火大', '不爽', '靠北', '幹', '操'],
             '絕望': ['想死', '不想活', '想放棄', '絕望', '沒意義'],
@@ -132,60 +139,48 @@ async function analyzeEmotion(message) {
 // 使用AI智能選擇經文和生成安慰話語
 async function selectVerseWithAI(originalMessage, analysis) {
     try {
+        console.log('開始GPT經文選擇...');
         const response = await axios.post('https://api.openai.com/v1/chat/completions', {
             model: 'gpt-3.5-turbo',
             messages: [
                 {
                     role: 'system',
-                    content: `你是一位有愛心的牧師，擅長從聖經中找到最合適的經文來安慰人。請根據用戶的原始訊息和情緒分析，推薦最適合的聖經經文。
-
-請回應JSON格式：
+                    content: `你是牧師，從聖經中找經文安慰人。請嚴格回應JSON格式，不要添加任何其他文字：
 {
-  "recommendedVerse": "經文引用（例如：太11:28）",
-  "reason": "為什麼選擇這節經文的原因",
-  "personalizedComfort": "針對用戶具體情況的個人化安慰話語",
-  "prayerSuggestion": "簡短的禱告建議"
+  "recommendedVerse": "太11:28",
+  "reason": "選擇原因",
+  "personalizedComfort": "個人化安慰話語",
+  "prayerSuggestion": "禱告建議"
 }
 
-可以推薦的經文包括但不限於：
-太11:28（勞苦重擔）、詩23:4（死蔭幽谷）、賽41:10（不要害怕）、腓4:13（凡事都能）、
-彼前5:7（憂慮卸給神）、腓4:6（一無掛慮）、來13:5（不撇下不丟棄）、羅8:28（萬事效力）、
-雅1:19（慢慢動怒）、弗4:26（生氣不犯罪）、箴16:32（治服己心）、詩56:3（懼怕倚靠）、
-約14:18（不撇下孤兒）、約一1:9（認罪赦免）、羅8:1（不定罪）、詩46:1（避難所）、
-林後4:16（不喪膽）、詩27:10（收留我）、賽1:18（雖紅如丹顏）等
-
-請選擇最符合用戶情況的經文，並提供真誠、溫暖、針對性的安慰話語。`
+可推薦經文：太11:28、詩23:4、賽41:10、腓4:13、彼前5:7、腓4:6、來13:5、羅8:28、雅1:19、弗4:26、箴16:32、詩56:3、約14:18、約一1:9、羅8:1、詩46:1、林後4:16、詩27:10等`
                 },
                 {
                     role: 'user',
-                    content: `用戶原始訊息："${originalMessage}"
-
-情緒分析結果：
-- 主要情緒：${analysis.primaryEmotion}
-- 強度：${analysis.intensity}/10
-- 關鍵字：${analysis.keywords?.join(', ') || '無'}
-
-請推薦最適合的聖經經文並提供個人化的安慰。`
+                    content: `用戶說："${originalMessage}"，情緒：${analysis.primaryEmotion}，強度：${analysis.intensity}，請推薦經文並安慰。`
                 }
             ],
             temperature: 0.7,
-            max_tokens: 500
+            max_tokens: 400
         }, {
             headers: {
                 'Authorization': `Bearer ${OPENAI_API_KEY}`,
                 'Content-Type': 'application/json'
-            }
+            },
+            timeout: 15000
         });
 
+        console.log('GPT經文選擇原始回應:', response.data.choices[0].message.content);
         const result = JSON.parse(response.data.choices[0].message.content);
-        console.log('AI推薦經文:', result);
+        console.log('GPT經文選擇結果:', result);
         return result;
 
     } catch (error) {
-        console.error('AI選擇經文失敗:', error.message);
+        console.error('GPT經文選擇失敗:', error.response?.data || error.message);
         
         // 備用系統：根據情緒選擇經文
-        const selectedVerse = selectVerse(analysis.primaryEmotion);
+        console.log('使用備用經文選擇...');
+        const selectedVerse = selectVerseBackup(analysis.primaryEmotion);
         return {
             recommendedVerse: selectedVerse.ref,
             reason: '根據你的情緒狀態，這節經文可能對你有幫助',
@@ -193,6 +188,26 @@ async function selectVerseWithAI(originalMessage, analysis) {
             prayerSuggestion: '你可以向神禱告，將你的感受告訴祂。'
         };
     }
+}
+
+// 備用經文選擇系統
+function selectVerseBackup(emotion) {
+    const mapping = {
+        '憤怒': ['憤怒', '通用'],
+        '絕望': ['絕望', '通用'],
+        '疲憊': ['疲憊', '通用'],
+        '焦慮': ['焦慮', '恐懼', '通用'],
+        '悲傷': ['絕望', '通用'],
+        '孤獨': ['孤獨', '通用'],
+        '厭惡': ['憤怒', '通用'],
+        '罪惡感': ['罪惡感', '通用'],
+        '壓力': ['壓力', '疲憊', '通用'],
+        '攻擊性': ['憤怒', '通用']
+    };
+    
+    const categories = mapping[emotion] || ['通用'];
+    const verses = COMFORT_VERSES.filter(v => categories.includes(v.category));
+    return verses[Math.floor(Math.random() * verses.length)];
 }
 
 // 獲取聖經經文
@@ -295,6 +310,16 @@ async function sendCareMessage(message, analysis) {
 client.once('ready', () => {
     console.log(`情緒關懷機器人已登入: ${client.user.tag}`);
     console.log('正在監聽所有訊息，自動檢測負面情緒...');
+    
+    // 檢查環境變數
+    if (!DISCORD_TOKEN) {
+        console.error('❌ 缺少 DISCORD_TOKEN 環境變數');
+    }
+    if (!OPENAI_API_KEY) {
+        console.error('❌ 缺少 OPENAI_API_KEY 環境變數');
+    } else {
+        console.log('✅ OpenAI API 金鑰已設定');
+    }
 });
 
 client.on('messageCreate', async (message) => {
