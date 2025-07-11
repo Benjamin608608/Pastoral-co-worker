@@ -129,24 +129,70 @@ async function analyzeEmotion(message) {
     }
 }
 
-// 選擇經文
-function selectVerse(emotion) {
-    const mapping = {
-        '憤怒': ['憤怒', '通用'],
-        '絕望': ['絕望', '通用'],
-        '疲憊': ['疲憊', '通用'],
-        '焦慮': ['焦慮', '恐懼', '通用'],
-        '悲傷': ['絕望', '通用'],
-        '孤獨': ['孤獨', '通用'],
-        '厭惡': ['憤怒', '通用'],
-        '罪惡感': ['罪惡感', '通用'],
-        '壓力': ['壓力', '疲憊', '通用'],
-        '攻擊性': ['憤怒', '通用']
-    };
-    
-    const categories = mapping[emotion] || ['通用'];
-    const verses = COMFORT_VERSES.filter(v => categories.includes(v.category));
-    return verses[Math.floor(Math.random() * verses.length)];
+// 使用AI智能選擇經文和生成安慰話語
+async function selectVerseWithAI(originalMessage, analysis) {
+    try {
+        const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+            model: 'gpt-3.5-turbo',
+            messages: [
+                {
+                    role: 'system',
+                    content: `你是一位有愛心的牧師，擅長從聖經中找到最合適的經文來安慰人。請根據用戶的原始訊息和情緒分析，推薦最適合的聖經經文。
+
+請回應JSON格式：
+{
+  "recommendedVerse": "經文引用（例如：太11:28）",
+  "reason": "為什麼選擇這節經文的原因",
+  "personalizedComfort": "針對用戶具體情況的個人化安慰話語",
+  "prayerSuggestion": "簡短的禱告建議"
+}
+
+可以推薦的經文包括但不限於：
+太11:28（勞苦重擔）、詩23:4（死蔭幽谷）、賽41:10（不要害怕）、腓4:13（凡事都能）、
+彼前5:7（憂慮卸給神）、腓4:6（一無掛慮）、來13:5（不撇下不丟棄）、羅8:28（萬事效力）、
+雅1:19（慢慢動怒）、弗4:26（生氣不犯罪）、箴16:32（治服己心）、詩56:3（懼怕倚靠）、
+約14:18（不撇下孤兒）、約一1:9（認罪赦免）、羅8:1（不定罪）、詩46:1（避難所）、
+林後4:16（不喪膽）、詩27:10（收留我）、賽1:18（雖紅如丹顏）等
+
+請選擇最符合用戶情況的經文，並提供真誠、溫暖、針對性的安慰話語。`
+                },
+                {
+                    role: 'user',
+                    content: `用戶原始訊息："${originalMessage}"
+
+情緒分析結果：
+- 主要情緒：${analysis.primaryEmotion}
+- 強度：${analysis.intensity}/10
+- 關鍵字：${analysis.keywords?.join(', ') || '無'}
+
+請推薦最適合的聖經經文並提供個人化的安慰。`
+                }
+            ],
+            temperature: 0.7,
+            max_tokens: 500
+        }, {
+            headers: {
+                'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const result = JSON.parse(response.data.choices[0].message.content);
+        console.log('AI推薦經文:', result);
+        return result;
+
+    } catch (error) {
+        console.error('AI選擇經文失敗:', error.message);
+        
+        // 備用系統：根據情緒選擇經文
+        const selectedVerse = selectVerse(analysis.primaryEmotion);
+        return {
+            recommendedVerse: selectedVerse.ref,
+            reason: '根據你的情緒狀態，這節經文可能對你有幫助',
+            personalizedComfort: `我理解你現在的${analysis.primaryEmotion}情緒，神知道你的感受，祂的愛永遠與你同在。`,
+            prayerSuggestion: '你可以向神禱告，將你的感受告訴祂。'
+        };
+    }
 }
 
 // 獲取聖經經文
@@ -275,10 +321,15 @@ client.on('messageCreate', async (message) => {
             const analysis = await analyzeEmotion(testMsg);
             
             if (analysis.isNegative && analysis.intensity >= 3) {
-                const fakeMessage = { ...message, content: testMsg, author: message.author, reply: message.reply.bind(message) };
+                const fakeMessage = { 
+                    ...message, 
+                    content: testMsg, 
+                    author: message.author, 
+                    reply: message.reply.bind(message) 
+                };
                 await sendCareMessage(fakeMessage, analysis);
             } else {
-                await message.reply('😊 沒有檢測到明顯負面情緒。');
+                await message.reply('😊 沒有檢測到明顯負面情緒。\n你可以試試：`!test 我好累想放棄`');
             }
         }
         
