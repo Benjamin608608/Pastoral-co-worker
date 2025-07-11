@@ -50,7 +50,7 @@ const COMFORT_VERSES = [
 
 // 冷卻機制
 const userCooldowns = new Map();
-const COOLDOWN_TIME = 30 * 60 * 1000; // 30分鐘
+const COOLDOWN_TIME = 10 * 1000; // 10秒
 
 function isOnCooldown(userId) {
     const lastResponse = userCooldowns.get(userId);
