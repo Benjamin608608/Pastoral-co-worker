@@ -68,12 +68,16 @@ function setCooldown(userId) {
 async function analyzeEmotion(message) {
     try {
         console.log('開始GPT情緒分析...');
+        
+        // 嘗試使用 JSON mode 來確保返回正確的JSON格式
         const response = await axios.post('https://api.openai.com/v1/chat/completions', {
             model: 'gpt-3.5-turbo',
             messages: [
                 {
                     role: 'system',
-                    content: `你是情緒分析專家。分析訊息中的負面情緒。請嚴格回應JSON格式，不要添加任何其他文字：
+                    content: `你是情緒分析專家。分析訊息中的負面情緒。請嚴格按照JSON格式回應，不要添加任何解釋文字。
+
+回應格式：
 {
   "isNegative": true,
   "primaryEmotion": "憤怒",
@@ -81,87 +85,16 @@ async function analyzeEmotion(message) {
   "keywords": ["關鍵字"]
 }
 
-主要情緒類型：憤怒、絕望、疲憊、焦慮、悲傷、孤獨、厭惡、罪惡感、壓力、攻擊性
-檢測負面情緒：憤怒、生氣、絕望、想死、疲憊、累、焦慮、擔心、悲傷、難過、孤獨、寂寞、厭惡、討厭、罪惡感、後悔、壓力、攻擊性、仇恨等。`
+情緒類型：憤怒、絕望、疲憊、焦慮、悲傷、孤獨、厭惡、罪惡感、壓力、攻擊性`
                 },
                 {
                     role: 'user',
-                    content: message
+                    content: `請分析這段話的情緒：${message}`
                 }
             ],
-            temperature: 0.3,
-            max_tokens: 150
-        }, {
-            headers: {
-                'Authorization': `Bearer ${OPENAI_API_KEY}`,
-                'Content-Type': 'application/json'
-            },
-            timeout: 10000
-        });
-
-        console.log('GPT原始回應:', response.data.choices[0].message.content);
-        const result = JSON.parse(response.data.choices[0].message.content);
-        console.log('GPT分析結果:', result);
-        return result;
-
-    } catch (error) {
-        console.error('GPT分析失敗:', error.response?.data || error.message);
-        
-        // 備用關鍵字分析
-        console.log('使用備用關鍵字分析...');
-        const keywords = {
-            '憤怒': ['生氣', '憤怒', '氣死', '火大', '不爽', '靠北', '幹', '操'],
-            '絕望': ['想死', '不想活', '想放棄', '絕望', '沒意義'],
-            '疲憊': ['累', '疲憊', '撐不住', '精疲力盡', '沒力氣'],
-            '焦慮': ['擔心', '害怕', '緊張', '恐懼', '不安'],
-            '悲傷': ['難過', '傷心', '哭', '痛苦', '憂鬱'],
-            '孤獨': ['孤單', '寂寞', '沒人理', '被忽略'],
-            '厭惡': ['討厭', '噁心', '厭惡', '反感'],
-            '壓力': ['壓力大', '喘不過氣', '負擔重']
-        };
-        
-        for (const [emotion, words] of Object.entries(keywords)) {
-            const matches = words.filter(word => message.includes(word));
-            if (matches.length > 0) {
-                return {
-                    isNegative: true,
-                    primaryEmotion: emotion,
-                    intensity: Math.min(matches.length * 3, 10),
-                    keywords: matches
-                };
-            }
-        }
-        
-        return { isNegative: false, intensity: 0 };
-    }
-}
-
-// 使用AI智能選擇經文和生成安慰話語
-async function selectVerseWithAI(originalMessage, analysis) {
-    try {
-        console.log('開始GPT經文選擇...');
-        const response = await axios.post('https://api.openai.com/v1/chat/completions', {
-            model: 'gpt-3.5-turbo',
-            messages: [
-                {
-                    role: 'system',
-                    content: `你是牧師，從聖經中找經文安慰人。請嚴格回應JSON格式，不要添加任何其他文字：
-{
-  "recommendedVerse": "太11:28",
-  "reason": "選擇原因",
-  "personalizedComfort": "個人化安慰話語",
-  "prayerSuggestion": "禱告建議"
-}
-
-可推薦經文：太11:28、詩23:4、賽41:10、腓4:13、彼前5:7、腓4:6、來13:5、羅8:28、雅1:19、弗4:26、箴16:32、詩56:3、約14:18、約一1:9、羅8:1、詩46:1、林後4:16、詩27:10等`
-                },
-                {
-                    role: 'user',
-                    content: `用戶說："${originalMessage}"，情緒：${analysis.primaryEmotion}，強度：${analysis.intensity}，請推薦經文並安慰。`
-                }
-            ],
-            temperature: 0.7,
-            max_tokens: 400
+            temperature: 0.2,
+            max_tokens: 200,
+            response_format: { type: "json_object" } // 強制JSON格式
         }, {
             headers: {
                 'Authorization': `Bearer ${OPENAI_API_KEY}`,
@@ -170,24 +103,176 @@ async function selectVerseWithAI(originalMessage, analysis) {
             timeout: 15000
         });
 
-        console.log('GPT經文選擇原始回應:', response.data.choices[0].message.content);
+        console.log('GPT原始回應:', response.data.choices[0].message.content);
         const result = JSON.parse(response.data.choices[0].message.content);
-        console.log('GPT經文選擇結果:', result);
+        console.log('GPT分析成功:', result);
         return result;
 
     } catch (error) {
-        console.error('GPT經文選擇失敗:', error.response?.data || error.message);
+        // 詳細的錯誤處理
+        if (error.response) {
+            console.error('OpenAI API錯誤:', {
+                status: error.response.status,
+                code: error.response.data?.error?.code,
+                message: error.response.data?.error?.message,
+                type: error.response.data?.error?.type
+            });
+        } else {
+            console.error('網路或其他錯誤:', error.message);
+        }
         
-        // 備用系統：根據情緒選擇經文
-        console.log('使用備用經文選擇...');
-        const selectedVerse = selectVerseBackup(analysis.primaryEmotion);
-        return {
-            recommendedVerse: selectedVerse.ref,
-            reason: '根據你的情緒狀態，這節經文可能對你有幫助',
-            personalizedComfort: `我理解你現在的${analysis.primaryEmotion}情緒，神知道你的感受，祂的愛永遠與你同在。`,
-            prayerSuggestion: '你可以向神禱告，將你的感受告訴祂。'
-        };
+        console.log('GPT分析失敗，切換到備用關鍵字分析');
+        return analyzeEmotionKeywords(message);
     }
+}
+
+// 備用關鍵字分析系統
+function analyzeEmotionKeywords(message) {
+    const keywords = {
+        '憤怒': ['生氣', '憤怒', '氣死', '火大', '不爽', '靠北', '幹', '操', '媽的'],
+        '絕望': ['想死', '不想活', '想放棄', '絕望', '沒意義', '活不下去'],
+        '疲憊': ['累', '疲憊', '撐不住', '精疲力盡', '沒力氣', '好累'],
+        '焦慮': ['擔心', '害怕', '緊張', '恐懼', '不安', '焦慮'],
+        '悲傷': ['難過', '傷心', '哭', '痛苦', '憂鬱', '沮喪'],
+        '孤獨': ['孤單', '寂寞', '沒人理', '被忽略', '邊緣人'],
+        '厭惡': ['討厭', '噁心', '厭惡', '反感', '看不順眼'],
+        '罪惡感': ['內疚', '羞恥', '後悔', '自責', '愧疚'],
+        '壓力': ['壓力大', '喘不過氣', '負擔重', '承受不住'],
+        '攻擊性': ['想打人', '想報復', '恨', '仇恨', '殺']
+    };
+    
+    for (const [emotion, words] of Object.entries(keywords)) {
+        const matches = words.filter(word => message.includes(word));
+        if (matches.length > 0) {
+            console.log(`關鍵字分析檢測到: ${emotion}, 關鍵字: ${matches.join(', ')}`);
+            return {
+                isNegative: true,
+                primaryEmotion: emotion,
+                intensity: Math.min(matches.length * 3, 10),
+                keywords: matches
+            };
+        }
+    }
+    
+    return { isNegative: false, intensity: 0, primaryEmotion: '無', keywords: [] };
+}
+
+// 使用AI智能選擇經文和生成安慰話語
+async function selectVerseWithAI(originalMessage, analysis) {
+    // 如果沒有OpenAI API或API不可用，直接使用備用系統
+    if (!OPENAI_API_KEY) {
+        console.log('沒有OpenAI API金鑰，使用備用經文選擇...');
+        return selectVerseBackup(originalMessage, analysis);
+    }
+    
+    try {
+        console.log('開始GPT經文選擇...');
+        const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+            model: 'gpt-3.5-turbo',
+            messages: [
+                {
+                    role: 'system',
+                    content: `你是一位有愛心的牧師，從聖經中選擇經文安慰人。請嚴格按照JSON格式回應：
+
+{
+  "recommendedVerse": "太11:28",
+  "reason": "選擇這節經文的原因",
+  "personalizedComfort": "個人化的安慰話語",
+  "prayerSuggestion": "禱告建議"
+}
+
+常用經文：太11:28、詩23:4、賽41:10、腓4:13、彼前5:7、腓4:6、來13:5、羅8:28、雅1:19、弗4:26、箴16:32等`
+                },
+                {
+                    role: 'user',
+                    content: `用戶說："${originalMessage}"，檢測到情緒：${analysis.primaryEmotion}，強度：${analysis.intensity}。請推薦合適的經文並提供個人化安慰。`
+                }
+            ],
+            temperature: 0.7,
+            max_tokens: 400,
+            response_format: { type: "json_object" } // 強制JSON格式
+        }, {
+            headers: {
+                'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            timeout: 20000
+        });
+
+        console.log('GPT經文選擇原始回應:', response.data.choices[0].message.content);
+        const result = JSON.parse(response.data.choices[0].message.content);
+        console.log('GPT經文選擇成功:', result);
+        return result;
+
+    } catch (error) {
+        if (error.response) {
+            console.error('OpenAI API錯誤 (經文選擇):', {
+                status: error.response.status,
+                code: error.response.data?.error?.code,
+                message: error.response.data?.error?.message
+            });
+        } else {
+            console.error('經文選擇錯誤:', error.message);
+        }
+        
+        console.log('GPT經文選擇失敗，使用備用系統');
+        return selectVerseBackup(originalMessage, analysis);
+    }
+}
+
+// 備用經文選擇系統
+function selectVerseBackup(originalMessage, analysis) {
+    console.log('使用備用經文選擇系統...');
+    
+    const versesByEmotion = {
+        '憤怒': [
+            { ref: '雅1:19', text: '你們各人要快快的聽，慢慢的說，慢慢的動怒。' },
+            { ref: '弗4:26', text: '生氣卻不要犯罪；不可含怒到日落。' },
+            { ref: '箴16:32', text: '不輕易發怒的，勝過勇士；治服己心的，強如取城。' }
+        ],
+        '絕望': [
+            { ref: '詩23:4', text: '我雖然行過死蔭的幽谷，也不怕遭害，因為你與我同在；你的杖，你的竿，都安慰我。' },
+            { ref: '賽41:10', text: '你不要害怕，因為我與你同在；不要驚惶，因為我是你的神。我必堅固你，我必幫助你；我必用我公義的右手扶持你。' },
+            { ref: '羅8:28', text: '我們曉得萬事都互相效力，叫愛神的人得益處，就是按他旨意被召的人。' }
+        ],
+        '疲憊': [
+            { ref: '太11:28', text: '凡勞苦擔重擔的人可以到我這裡來，我就使你們得安息。' },
+            { ref: '林後4:16', text: '所以，我們不喪膽。外體雖然毀壞，內心卻一天新似一天。' },
+            { ref: '賽40:31', text: '但那等候耶和華的必從新得力。他們必如鷹展翅上騰；他們奔跑卻不困倦，行走卻不疲乏。' }
+        ],
+        '焦慮': [
+            { ref: '彼前5:7', text: '你們要將一切的憂慮卸給神，因為他顧念你們。' },
+            { ref: '腓4:6', text: '應當一無掛慮，只要凡事藉著禱告、祈求，和感謝，將你們所要的告訴神。' },
+            { ref: '詩56:3', text: '我懼怕的時候要倚靠你。' }
+        ],
+        '通用': [
+            { ref: '腓4:13', text: '我靠著那加給我力量的，凡事都能做。' },
+            { ref: '詩46:1', text: '神是我們的避難所，是我們的力量，是我們在患難中隨時的幫助。' }
+        ]
+    };
+    
+    const verses = versesByEmotion[analysis.primaryEmotion] || versesByEmotion['通用'];
+    const selectedVerse = verses[Math.floor(Math.random() * verses.length)];
+    
+    const comfortMessages = {
+        '憤怒': '我理解你現在的憤怒，這些感受是真實的。神知道你的心情，祂的愛能夠平息內心的風暴。',
+        '絕望': '即使在最黑暗的時刻，你也不是孤單的。神愛你，祂有美好的計劃要給你盼望和未來。',
+        '疲憊': '你辛苦了，神看見你的努力。來到祂面前歇息，讓祂成為你的力量。',
+        '焦慮': '不要害怕，神掌管一切。你可以將憂慮交託給祂，因為祂顧念你。',
+        '悲傷': '哭泣可能一宿存留，但歡呼必來到早晨。神必擦去你的眼淚，賜給你安慰。',
+        '孤獨': '你並不孤單，神時刻與你同在。祂愛你，永遠不會離棄你。',
+        '厭惡': '這些負面感受很真實，但不要讓它們佔據你的心。神的愛能夠帶來內心的平靜。',
+        '罪惡感': '神的恩典比你的過錯更大。祂已經赦免了你，你可以重新開始。',
+        '壓力': '你承受的重擔，神都知道。來到祂面前，讓祂成為你的避難所。',
+        '攻擊性': '憤怒是人之常情，但讓神的愛來軟化你的心，帶來真正的平安。'
+    };
+    
+    return {
+        recommendedVerse: selectedVerse.ref,
+        reason: '根據你的情緒狀態，這節經文可能對你有幫助',
+        personalizedComfort: comfortMessages[analysis.primaryEmotion] || '神愛你，祂必不撇下你，也不丟棄你。',
+        prayerSuggestion: '你可以向神禱告，將你的感受告訴祂，祂必聽你的禱告。'
+    };
 }
 
 // 備用經文選擇系統
